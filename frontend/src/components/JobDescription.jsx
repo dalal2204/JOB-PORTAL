@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { useParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { APPLICATION_API_END_POINT, JOB_API_END_POINT } from '@/utils/constant';
 import { setSingleJob } from '@/redux/jobSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'sonner';
+import Navbar from './shared/Navbar';
 
 const JobDescription = () => {
     const { singleJob } = useSelector(store => store.job);
@@ -25,6 +26,7 @@ const JobDescription = () => {
                 setIsApplied(true);
                 const updatedSingleJob = {
                     ...singleJob,
+                    applicantCount: (singleJob?.applicantCount ?? singleJob?.applications?.length ?? 0) + 1,
                     applications: [...(singleJob?.applications || []), { applicant: user?._id }],
                 };
                 dispatch(setSingleJob(updatedSingleJob));
@@ -51,8 +53,10 @@ const JobDescription = () => {
     }, [jobId, dispatch, user?._id]);
 
     return (
-        <div className='max-w-7xl mx-auto my-10'>
-            <div className='flex items-center justify-between'>
+        <div className='min-h-screen bg-[#f8faf9]'><Navbar />
+        <main className='mx-auto my-8 max-w-5xl px-4 sm:px-6'>
+            <div className='rounded-3xl border border-emerald-950/10 bg-white p-6 shadow-sm sm:p-9'>
+            <div className='flex flex-wrap items-center justify-between gap-5'>
                 <div>
                     <h1 className='font-bold text-xl'>{singleJob?.title}</h1>
                     <div className='flex items-center gap-2 mt-4 flex-wrap'>
@@ -68,7 +72,7 @@ const JobDescription = () => {
                     {isApplied ? 'Already Applied' : 'Apply Now'}
                 </Button>
             </div>
-            <h1 className='border-b-2 border-b-gray-300 font-medium py-4'>Job Description</h1>
+            <h1 className='mt-8 border-b border-emerald-950/10 pb-4 text-lg font-bold text-slate-900'>Job description</h1>
             <div className='my-4'>
                 <h1 className='font-bold my-1'>Company: <span className='pl-4 font-normal text-gray-800'>{singleJob?.company}</span></h1>
                 <h1 className='font-bold my-1'>Role: <span className='pl-4 font-normal text-gray-800'>{singleJob?.title}</span></h1>
@@ -76,10 +80,11 @@ const JobDescription = () => {
                 <h1 className='font-bold my-1'>Description: <span className='pl-4 font-normal text-gray-800'>{singleJob?.description}</span></h1>
                 <h1 className='font-bold my-1'>Experience: <span className='pl-4 font-normal text-gray-800'>{singleJob?.experienceLevel || 0} yrs</span></h1>
                 <h1 className='font-bold my-1'>Salary: <span className='pl-4 font-normal text-gray-800'>{singleJob?.salary} LPA</span></h1>
-                <h1 className='font-bold my-1'>Total Applicants: <span className='pl-4 font-normal text-gray-800'>{singleJob?.applications?.length || 0}</span></h1>
+                <h1 className='font-bold my-1'>Total Applicants: <span className='pl-4 font-normal text-gray-800'>{singleJob?.applicantCount ?? singleJob?.applications?.length ?? 0}</span></h1>
                 <h1 className='font-bold my-1'>Posted Date: <span className='pl-4 font-normal text-gray-800'>{singleJob?.createdAt ? singleJob.createdAt.split("T")[0] : 'N/A'}</span></h1>
             </div>
-        </div>
+            </div>
+        </main></div>
     )
 }
 

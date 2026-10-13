@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import Navbar from './shared/Navbar'
 import Job from './Job';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,9 +19,9 @@ const Browse = () => {
     return (
         <div>
             <Navbar />
-            <div className='max-w-7xl mx-auto my-10'>
-                <h1 className='font-bold text-xl my-10'>Search Results ({allJobs.length})</h1>
-                <div className='grid grid-cols-3 gap-4'>
+            <main className='mx-auto my-9 max-w-7xl px-4 sm:px-6'>
+                <div className='mb-7'><p className='text-xs font-bold uppercase tracking-[.15em] text-emerald-700'>Explore opportunities</p><h1 className='mt-2 text-3xl font-bold tracking-tight text-slate-900'>Search results <span className='text-lg font-medium text-slate-500'>({allJobs.length})</span></h1></div>
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
                     {
                         allJobs.map((job) => {
                             return (
@@ -31,7 +31,7 @@ const Browse = () => {
                     }
                 </div>
 
-            </div>
+            </main>
         </div>
     )
 }

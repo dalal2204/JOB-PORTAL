@@ -58,11 +58,11 @@ const Login = () => {
         }
     },[])
     return (
-        <div>
+        <div className="min-h-screen bg-[#f5f8f6]">
             <Navbar />
-            <div className='flex items-center justify-center max-w-7xl mx-auto'>
-                <form onSubmit={submitHandler} className='w-1/2 border border-gray-200 rounded-md p-4 my-10'>
-                    <h1 className='font-bold text-xl mb-5'>Login</h1>
+            <main className='mx-auto flex max-w-7xl justify-center px-4 py-10 sm:px-6 sm:py-16'>
+                <form onSubmit={submitHandler} className='w-full max-w-md rounded-3xl border border-emerald-950/10 bg-white p-6 shadow-[0_18px_60px_-35px_rgba(12,60,48,.3)] sm:p-9'>
+                    <div className='mb-7'><p className='text-xs font-bold uppercase tracking-[.15em] text-emerald-700'>Welcome back</p><h1 className='mt-2 text-3xl font-bold tracking-tight text-slate-900'>Log in</h1><p className='mt-1 text-sm text-slate-500'>Continue where your next opportunity begins.</p></div>
                     <div className='my-2'>
                         <Label>Email</Label>
                         <Input
@@ -115,7 +115,7 @@ const Login = () => {
                     }
                     <span className='text-sm'>Don't have an account? <Link to="/signup" className='text-blue-600'>Signup</Link></span>
                 </form>
-            </div>
+            </main>
         </div>
     )
 }

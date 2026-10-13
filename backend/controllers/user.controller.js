@@ -26,8 +26,9 @@ export const register = async (req, res) => {
             });
         };
         const file = req.file;
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+        if (file && (!file.mimetype.startsWith("image/") || !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype))) {
+            return res.status(400).json({ message: "Upload a JPEG, PNG, or WebP profile image.", success: false });
+        }
 
         const user = await User.findOne({ email });
         if (user) {
@@ -38,6 +39,7 @@ export const register = async (req, res) => {
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        const cloudResponse = file ? await cloudinary.uploader.upload(getDataUri(file).content, { resource_type: "image" }) : null;
         await User.create({
             fullname,
             email,
@@ -45,7 +47,7 @@ export const register = async (req, res) => {
             password: hashedPassword,
             role,
             profile:{
-                profilePhoto:cloudResponse.secure_url,
+                profilePhoto:cloudResponse?.secure_url || "",
             }
         });
 
@@ -54,7 +56,8 @@ export const register = async (req, res) => {
             success: true
         });
     } catch (error) {
-        console.log(error);
+        console.error("Registration failed:", error);
+        return res.status(500).json({ message: "Unable to create account. Please try again.", success: false });
     }
 }
 export const login = async (req, res) => {
@@ -133,12 +136,6 @@ export const updateProfile = async (req, res) => {
         
         const file = req.file;
         
-        // cloudinary ayega idhar
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-
-
-
         let skillsArray;
         if(skills){
             skillsArray = skills.split(",");
@@ -152,6 +149,19 @@ export const updateProfile = async (req, res) => {
                 success: false
             })
         }
+        let cloudResponse = null;
+        if (file) {
+            const isPdf = file.mimetype === "application/pdf"
+                && file.originalname?.toLowerCase().endsWith(".pdf")
+                && file.buffer?.subarray(0, 5).toString() === "%PDF-";
+            if (!isPdf) return res.status(400).json({ message: "Upload a readable PDF resume.", success: false });
+            cloudResponse = await cloudinary.uploader.upload(getDataUri(file).content, {
+                resource_type: "raw",
+                folder: "job-portal/resumes",
+                use_filename: true,
+                unique_filename: true,
+            });
+        }
         // updating data
         if(fullname) user.fullname = fullname
         if(email) user.email = email
@@ -159,7 +169,6 @@ export const updateProfile = async (req, res) => {
         if(bio) user.profile.bio = bio
         if(skills) user.profile.skills = skillsArray
       
-        // resume comes later here...
         if(cloudResponse){
             user.profile.resume = cloudResponse.secure_url // save the cloudinary url
             user.profile.resumeOriginalName = file.originalname // Save the original file name
@@ -183,6 +192,7 @@ export const updateProfile = async (req, res) => {
             success:true
         })
     } catch (error) {
-        console.log(error);
+        console.error("Profile update failed:", error);
+        return res.status(500).json({ message: "Unable to update profile. Please try again.", success: false });
     }
 }

@@ -29,6 +29,7 @@ export const serializeJob = (job) => {
     return {
         ...plainJob,
         company: normalizeCompanyName(plainJob.company),
+        applicantCount: job.applicantCount ?? plainJob.applicantCount ?? plainJob.applications?.length ?? 0,
     };
 };
 

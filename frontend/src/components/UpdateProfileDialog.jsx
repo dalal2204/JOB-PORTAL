@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Label } from './ui/label'
 import { Input } from './ui/input'
@@ -19,8 +19,8 @@ const UpdateProfileDialog = ({ open, setOpen }) => {
         email: user?.email || "",
         phoneNumber: user?.phoneNumber || "",
         bio: user?.profile?.bio || "",
-        skills: user?.profile?.skills?.map(skill => skill) || "",
-        file: user?.profile?.resume || ""
+        skills: user?.profile?.skills?.join(", ") || "",
+        file: ""
     });
     const dispatch = useDispatch();
 
@@ -77,6 +77,7 @@ const UpdateProfileDialog = ({ open, setOpen }) => {
                     </DialogHeader>
                     <form onSubmit={submitHandler}>
                         <div className='grid gap-4 py-4'>
+                            {user?.profile?.resume && <div className='col-span-4 text-right text-xs text-slate-500'>Current resume: <a className="text-blue-600 underline" href={user.profile.resume} target="_blank" rel="noreferrer">{user.profile.resumeOriginalName || 'View PDF'}</a></div>}
                             <div className='grid grid-cols-4 items-center gap-4'>
                                 <Label htmlFor="name" className="text-right">Name</Label>
                                 <Input

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Navbar from './shared/Navbar'
 import FilterCard from './FilterCard'
 import Job from './Job';
@@ -27,15 +27,15 @@ const Jobs = () => {
     return (
         <div>
             <Navbar />
-            <div className='max-w-7xl mx-auto mt-5'>
-                <div className='flex gap-5'>
-                    <div className='w-20%'>
+            <main className='mx-auto mt-7 max-w-7xl px-4 sm:px-6'>
+                <div className='flex flex-col gap-6 lg:flex-row'>
+                    <aside className='w-full shrink-0 lg:w-64'>
                         <FilterCard />
-                    </div>
+                    </aside>
                     {
                         filterJobs.length <= 0 ? <span>Job not found</span> : (
-                            <div className='flex-1 h-[88vh] overflow-y-auto pb-5'>
-                                <div className='grid grid-cols-3 gap-4'>
+                            <div className='min-w-0 flex-1 pb-8'>
+                                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
                                     {
                                         filterJobs.map((job) => (
                                             <motion.div
@@ -53,7 +53,7 @@ const Jobs = () => {
                         )
                     }
                 </div>
-            </div>
+            </main>
 
 
         </div>

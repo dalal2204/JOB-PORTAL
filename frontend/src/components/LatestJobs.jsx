@@ -1,4 +1,3 @@
-import React from 'react'
 import LatestJobCards from './LatestJobCards';
 import { useSelector } from 'react-redux'; 
 
@@ -8,14 +7,14 @@ const LatestJobs = () => {
     const {allJobs} = useSelector(store=>store.job);
    
     return (
-        <div className='max-w-7xl mx-auto my-20'>
-            <h1 className='text-4xl font-bold'><span className='text-[#6A38C2]'>Latest & Top </span> Job Openings</h1>
-            <div className='grid grid-cols-3 gap-4 my-5'>
+        <section className='mx-auto my-16 max-w-7xl px-4 sm:px-6 lg:my-20'>
+            <div className='mb-7 flex flex-wrap items-end justify-between gap-3'><div><p className='text-xs font-bold uppercase tracking-[.15em] text-emerald-700'>Fresh opportunities</p><h2 className='mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl'>Latest <span className='text-emerald-700'>open roles</span></h2></div><p className='max-w-xs text-sm text-slate-500'>A few places to make your next move.</p></div>
+            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                 {
                     allJobs.length <= 0 ? <span>No Job Available</span> : allJobs?.slice(0,6).map((job) => <LatestJobCards key={job._id} job={job}/>)
                 }
             </div>
-        </div>
+        </section>
     )
 }
 

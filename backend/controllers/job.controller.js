@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Job } from "../models/job.model.js";
 import { normalizeCompanyName, serializeJob } from "../utils/jobSerialization.js";
+import { Application } from "../models/application.model.js";
 
 const normalizeRequirements = (requirements) => {
     if (Array.isArray(requirements)) {
@@ -107,14 +108,7 @@ export const getJobById = async (req, res) => {
             });
         }
 
-        const job = await Job.findById(id).populate({
-            path: "applications",
-            populate: {
-                path: "applicant",
-                select: "fullname email phoneNumber profile",
-            },
-            options: { sort: { createdAt: -1 } },
-        });
+        const job = await Job.findById(id);
 
         if (!job) {
             return res.status(404).json({
@@ -122,6 +116,20 @@ export const getJobById = async (req, res) => {
                 success: false,
             });
         }
+
+        const applicantCount = job.applications.length;
+        if (job.created_by.toString() === req.id) {
+            await job.populate({
+                path: "applications",
+                populate: { path: "applicant", select: "fullname email phoneNumber profile" },
+                options: { sort: { createdAt: -1 } },
+            });
+        } else {
+            // Applicants remain private; a student only receives their own application reference.
+            const ownApplication = await Application.findOne({ job: id, applicant: req.id }).select("_id applicant");
+            job.applications = ownApplication ? [ownApplication] : [];
+        }
+        job.applicantCount = applicantCount;
 
         return res.status(200).json({
             job: serializeJob(job),

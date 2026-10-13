@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./utils/db.js";
 import { migrateLegacyCompanyRefs } from "./utils/migrateLegacyCompanyRefs.js";
+import { ensureApplicationIndexes } from "./utils/migrateApplicationIndexes.js";
 import userRoute from "./routes/user.route.js";
 import jobRoute from "./routes/job.route.js";
 import applicationRoute from "./routes/application.route.js";
@@ -30,6 +31,7 @@ app.use("/api/v1/application", applicationRoute);
 const startServer = async () => {
     await connectDB();
     await migrateLegacyCompanyRefs();
+    await ensureApplicationIndexes();
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });

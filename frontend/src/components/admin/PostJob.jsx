@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Navbar from '../shared/Navbar'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -93,9 +93,10 @@ const PostJob = ({ mode = 'create' }) => {
     return (
         <div>
             <Navbar />
-            <div className='flex items-center justify-center w-screen my-5'>
-                <form onSubmit={submitHandler} className='p-8 max-w-4xl border border-gray-200 shadow-lg rounded-md'>
-                    <div className='grid grid-cols-2 gap-3'>
+            <main className='mx-auto max-w-4xl px-4 py-8 sm:px-6'>
+                <form onSubmit={submitHandler} className='w-full rounded-3xl border border-emerald-950/10 bg-white p-5 shadow-sm sm:p-8'>
+                    <div className='mb-7'><p className='text-xs font-bold uppercase tracking-[.15em] text-emerald-700'>Recruiter workspace</p><h1 className='mt-2 text-2xl font-bold tracking-tight text-slate-900'>{mode === 'edit' ? 'Edit job posting' : 'Create a job posting'}</h1><p className='mt-1 text-sm text-slate-500'>Share the details candidates need to find the right fit.</p></div>
+                    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
                         <div>
                             <Label>Title</Label>
                             <Input
@@ -116,7 +117,7 @@ const PostJob = ({ mode = 'create' }) => {
                                 className="focus-visible:ring-offset-0 focus-visible:ring-0 my-1"
                             />
                         </div>
-                        <div className='col-span-2'>
+                        <div className='sm:col-span-2'>
                             <Label>Description</Label>
                             <Input
                                 type="text"
@@ -126,7 +127,7 @@ const PostJob = ({ mode = 'create' }) => {
                                 className="focus-visible:ring-offset-0 focus-visible:ring-0 my-1"
                             />
                         </div>
-                        <div className='col-span-2'>
+                        <div className='sm:col-span-2'>
                             <Label>Requirements</Label>
                             <Input
                                 type="text"
@@ -191,7 +192,7 @@ const PostJob = ({ mode = 'create' }) => {
                         loading ? <Button className="w-full my-4"> <Loader2 className='mr-2 h-4 w-4 animate-spin' /> Please wait </Button> : <Button type="submit" className="w-full my-4">{mode === 'edit' ? 'Update Job' : 'Post New Job'}</Button>
                     }
                 </form>
-            </div>
+            </main>
         </div>
     )
 }
