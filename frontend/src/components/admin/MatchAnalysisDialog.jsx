@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AlertCircle, BriefcaseBusiness, CheckCircle2, ExternalLink, FileText, GraduationCap, Loader2, RotateCw, Sparkles } from 'lucide-react';
 import { APPLICATION_API_END_POINT } from '@/utils/constant';
+import { isAnalysisRetryable } from '@/utils/analysisRetry';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 
@@ -24,13 +25,14 @@ export default function MatchAnalysisDialog({ applicationId, open, onOpenChange,
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [retryError, setRetryError] = useState('');
 
     useEffect(() => {
         if (!open || !applicationId) return;
         let active = true;
         setLoading(true);
         setError('');
-        axios.get(`${APPLICATION_API_END_POINT}/analysis/${applicationId}`, { withCredentials: true })
+        axios.get(`${APPLICATION_API_END_POINT}/analysis/${applicationId}`, { withCredentials: true, headers: { 'Cache-Control': 'no-cache' } })
             .then(response => { if (active) setData(response.data.application); })
             .catch(requestError => { if (active) setError(requestError?.response?.data?.message || 'Unable to load analysis details.'); })
             .finally(() => { if (active) setLoading(false); });
@@ -42,7 +44,7 @@ export default function MatchAnalysisDialog({ applicationId, open, onOpenChange,
     const candidate = application?.applicant;
     const job = application?.job;
     const score = analysis?.score;
-    const canRetry = ['failed', 'pending'].includes(analysis?.status) || (analysis?.status === 'processing' && Date.now() - new Date(analysis.processingAt || 0).getTime() >= 15 * 60 * 1000);
+    const canRetry = isAnalysisRetryable(analysis);
 
     return <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border-0 bg-slate-50 p-0 shadow-2xl" aria-describedby="analysis-dialog-description">
@@ -77,11 +79,15 @@ export default function MatchAnalysisDialog({ applicationId, open, onOpenChange,
                     {analysis.limitations?.length > 0 && <p className="px-1 text-xs leading-5 text-slate-500">{analysis.limitations.join(' ')}</p>}
                 </>}
                 {!loading && !error && canRetry && onRetry && <Button type="button" onClick={async () => {
+                    setRetryError('');
                     try {
                         const response = await onRetry(application?._id);
                         if (response?.analysis && application) setData({ ...application, analysis: response.analysis });
-                    } catch { /* The applicant list already presents the retry error. */ }
+                    } catch (requestError) {
+                        setRetryError(requestError?.response?.data?.message || 'Unable to retry analysis.');
+                    }
                 }} disabled={retrying} className="w-full sm:w-auto"><RotateCw className={`mr-2 h-4 w-4 ${retrying ? 'animate-spin' : ''}`} />{retrying ? 'Retrying analysis…' : 'Retry analysis'}</Button>}
+                {retryError && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{retryError}</div>}
             </div>
         </DialogContent>
     </Dialog>;

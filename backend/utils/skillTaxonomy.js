@@ -29,7 +29,8 @@ export const findSkills = (text, taxonomy = SKILL_TAXONOMY) => {
     const source = String(text || "").toLowerCase();
     return Object.entries(taxonomy).filter(([, aliases]) => aliases.some((alias) => {
         const pattern = escapeRegex(alias.toLowerCase()).replace(/\\ /g, "\\s+");
-        return new RegExp(`(^|[^a-z0-9+#.])${pattern}($|[^a-z0-9+#.])`, "i").test(source);
+        const rightBoundary = alias.toLowerCase() === "node" ? "($|[^a-z0-9+#.]|\\.(?!js\\b))" : "($|[^a-z0-9+#])";
+        return new RegExp(`(^|[^a-z0-9+#.])${pattern}${rightBoundary}`, "i").test(source);
     })).map(([name]) => name);
 };
 

@@ -2,6 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
 import connectDB from "./utils/db.js";
 import { migrateLegacyCompanyRefs } from "./utils/migrateLegacyCompanyRefs.js";
 import { ensureApplicationIndexes } from "./utils/migrateApplicationIndexes.js";
@@ -9,7 +10,7 @@ import userRoute from "./routes/user.route.js";
 import jobRoute from "./routes/job.route.js";
 import applicationRoute from "./routes/application.route.js";
 
-dotenv.config({});
+dotenv.config({ path: fileURLToPath(new URL("./.env", import.meta.url)) });
 
 const app = express();
 

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AlertCircle, ArrowUpRight, Check, ChevronDown, FileText, Loader2, RotateCw, Search, Sparkles, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { APPLICATION_API_END_POINT } from '@/utils/constant';
+import { isAnalysisRetryable } from '@/utils/analysisRetry';
 import { selectTopCandidates } from '@/utils/ranking';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -29,10 +30,10 @@ function ScoreRing({ score }) {
 }
 
 function AnalysisState({ analysis, onRetry, retrying, id }) {
-    if (analysis?.status === 'completed') return <div className="flex flex-wrap gap-2">{analysis.availability?.semanticRelevance === 'unavailable' && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"><AlertCircle className="h-3 w-3" />Partial analysis</span>}</div>;
+    if (analysis?.status === 'completed') return <div className="flex flex-wrap items-center gap-2">{analysis.availability?.semanticRelevance === 'unavailable' && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"><AlertCircle className="h-3 w-3" />Partial analysis</span>}{isAnalysisRetryable(analysis) && <button type="button" onClick={() => onRetry(id)} disabled={retrying} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-emerald-800 disabled:opacity-50"><RotateCw className={`h-3 w-3 ${retrying ? 'animate-spin' : ''}`} />{retrying ? 'Retrying' : 'Retry analysis'}</button>}</div>;
     const staleProcessing = analysis?.status === 'processing' && Date.now() - new Date(analysis.processingAt || 0).getTime() >= 15 * 60 * 1000;
     if (analysis?.status === 'processing' && !staleProcessing) return <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-800"><Loader2 className="h-3 w-3 animate-spin" />Analysis processing</span>;
-    const retryable = ['pending', 'failed'].includes(analysis?.status) || staleProcessing;
+    const retryable = isAnalysisRetryable(analysis);
     return <div className="flex flex-wrap items-center gap-2">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${analysis?.status === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-slate-200 bg-slate-100 text-slate-700'}`}><AlertCircle className="h-3 w-3" />{analysis?.status === 'failed' ? 'Analysis failed' : staleProcessing ? 'Analysis stalled' : 'Analysis pending'}</span>
         {analysis?.error && <span className="max-w-xs truncate text-xs text-rose-700" title={analysis.error}>{analysis.error}</span>}

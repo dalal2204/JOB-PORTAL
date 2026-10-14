@@ -4,6 +4,7 @@ import { Application } from "../models/application.model.js";
 import { Job } from "../models/job.model.js";
 import { serializeApplication } from "../utils/jobSerialization.js";
 import { getJobFingerprint, processApplicationAnalysis } from "../services/applicationAnalysis.js";
+import { SCORING_VERSION } from "../services/resumeMatch.js";
 import { canRetryAnalysis, getApplicationRejection, recruiterOwnsJob } from "../utils/applicationRules.js";
 import { rankApplications } from "../utils/applicationRanking.js";
 
@@ -137,7 +138,7 @@ export const getRankedApplicants = async (req, res) => {
         for (const application of applications) {
             const resumeUrl = application.applicant?.profile?.resume || null;
             const previous = application.analysis;
-            const outdated = previous?.status === "completed" && (previous.resumeUrl !== resumeUrl || previous.jobFingerprint !== currentJobFingerprint);
+            const outdated = previous?.status === "completed" && (previous.resumeUrl !== resumeUrl || previous.jobFingerprint !== currentJobFingerprint || previous.scoringVersion !== SCORING_VERSION);
             if (outdated) {
                 application.analysis = { status: "pending", score: null, error: null, matchedSkills: [], missingSkills: [], evidence: [], strengths: [], gaps: [], limitations: [], breakdown: null };
                 await application.save();
@@ -179,16 +180,17 @@ export const retryApplicationAnalysis = async (req, res) => {
             application.analysis = { status: "pending", score: null, matchedSkills: [], missingSkills: [], evidence: [], strengths: [], gaps: [], limitations: [] };
             await application.save();
         }
-        if (!canRetryAnalysis(application.analysis?.status, application.analysis?.processingAt)) {
-            return res.status(409).json({ success: false, message: "Only pending, failed, or stale analyses can be retried." });
+        if (!canRetryAnalysis(application.analysis?.status, application.analysis?.processingAt, Date.now(), application.analysis)) {
+            return res.status(409).json({ success: false, message: "Only pending, failed, stale, or semantically incomplete analyses can be retried." });
         }
-        if (!(["pending", "failed"].includes(application.analysis?.status) || application.analysis?.status === "processing")) {
-            return res.status(409).json({ success: false, message: "Only pending or failed analyses can be retried." });
+        if (!(["pending", "failed"].includes(application.analysis?.status) || application.analysis?.status === "processing" || (application.analysis?.status === "completed" && application.analysis?.availability?.semanticRelevance === "unavailable"))) {
+            return res.status(409).json({ success: false, message: "Only pending, failed, stale, or semantically incomplete analyses can be retried." });
         }
         if (application.analysis?.status === "processing") {
             await Application.updateOne({ _id: id, "analysis.status": "processing" }, { $set: { "analysis.status": "pending" } });
         }
         const updated = await processApplicationAnalysis(id, { retry: true });
+        console.info("Analysis retry response prepared", { status: updated?.analysis?.status || null, analyzed: Boolean(updated?.analysis?.analyzedAt) });
         return res.status(200).json({ success: true, message: "Analysis retry finished.", analysis: updated?.analysis });
     } catch (error) {
         console.error("Application analysis retry failed:", error);

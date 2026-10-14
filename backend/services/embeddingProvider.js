@@ -1,31 +1,76 @@
-let cachedApiKey;
+import { GoogleGenAI } from "@google/genai";
 
-const getApiKey = () => process.env.OPENAI_API_KEY?.trim();
+export const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
+const MAX_EMBEDDING_INPUTS = 32;
+const REQUEST_TIMEOUT_MS = 12000;
+let clientFactory = (apiKey) => new GoogleGenAI({ apiKey });
+
+// Kept injectable so provider behavior can be tested without network calls or credentials.
+export const setEmbeddingClientFactory = (factory) => {
+    clientFactory = factory || ((apiKey) => new GoogleGenAI({ apiKey }));
+};
+
+export const getEmbeddingModel = () => process.env.GEMINI_EMBEDDING_MODEL?.trim() || DEFAULT_EMBEDDING_MODEL;
+
+const isValidVector = (vector) => Array.isArray(vector) && vector.length > 0 && vector.every((value) => Number.isFinite(value));
+
+const logProviderFailure = ({ model, reason, error, apiKey }) => {
+    const rawMessage = String(error?.message || "").slice(0, 500);
+    const message = apiKey ? rawMessage.split(apiKey).join("[redacted]") : rawMessage;
+    console.error("Gemini embedding request failed", {
+        model,
+        reason,
+        status: Number(error?.status || error?.code || error?.response?.status) || undefined,
+        errorName: error?.name || "Error",
+        message: message.replace(/([?&](?:key|api_key|x-goog-api-key)=)[^&\s]+/gi, "$1[redacted]"),
+    });
+};
+
+const failed = (reason, details = {}) => {
+    logProviderFailure({ reason, model: getEmbeddingModel(), ...details });
+    return { available: false, reason };
+};
+
+const failureReason = (error) => {
+    const status = Number(error?.status || error?.code || error?.response?.status);
+    if (status === 429) return "Semantic matching is temporarily rate limited by Google.";
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") return "Semantic matching timed out while contacting Google.";
+    if (status === 400 || status === 422) return "Google rejected the semantic matching input or model configuration.";
+    return "Semantic matching provider is temporarily unavailable.";
+};
 
 export const getEmbeddingVectors = async (texts) => {
-    const apiKey = getApiKey();
-    if (!apiKey) return { available: false, reason: "Semantic matching is unavailable because OPENAI_API_KEY is not configured." };
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) return { available: false, reason: "Semantic matching is unavailable because GEMINI_API_KEY is not configured." };
+    if (!Array.isArray(texts) || texts.length === 0 || texts.length > MAX_EMBEDDING_INPUTS || texts.some((text) => typeof text !== "string" || !text.trim())) {
+        return { available: false, reason: "Semantic matching provider received empty or invalid text." };
+    }
+
     try {
-        if (cachedApiKey !== apiKey) cachedApiKey = apiKey;
-        const response = await fetch("https://api.openai.com/v1/embeddings", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${cachedApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small", input: texts.slice(0, 32) }),
-            signal: AbortSignal.timeout(12000),
+        const client = clientFactory(apiKey);
+        const response = await client.models.embedContent({
+            model: getEmbeddingModel(),
+            contents: texts,
+            config: { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
         });
-        if (!response.ok) return { available: false, reason: response.status === 429 ? "Semantic matching is temporarily rate limited." : "Semantic matching provider is temporarily unavailable." };
-        const payload = await response.json();
-        if (!Array.isArray(payload.data) || payload.data.length !== texts.slice(0, 32).length || payload.data.some((item) => !Array.isArray(item.embedding) || !item.embedding.length)) {
-            return { available: false, reason: "Semantic matching provider returned an invalid response." };
+        const embeddings = response?.embeddings;
+        if (!Array.isArray(embeddings) || embeddings.length !== texts.length) {
+            return failed("Semantic matching provider returned an invalid response.", { apiKey });
         }
-        return { available: true, vectors: payload.data.sort((a, b) => a.index - b.index).map((item) => item.embedding) };
-    } catch {
-        return { available: false, reason: "Semantic matching timed out or could not reach its provider." };
+        const vectors = embeddings.map((embedding) => embedding?.values);
+        if (!vectors.every(isValidVector) || vectors.some((vector) => vector.length !== vectors[0].length)) {
+            return failed("Semantic matching provider returned empty, malformed, or incompatible vectors.", { apiKey });
+        }
+        return { available: true, vectors, provider: "Google Gemini", model: getEmbeddingModel() };
+    } catch (error) {
+        const reason = failureReason(error);
+        logProviderFailure({ model: getEmbeddingModel(), reason, error, apiKey });
+        return { available: false, reason };
     }
 };
 
 export const cosineSimilarity = (left, right) => {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length || !left.length) return null;
+    if (!isValidVector(left) || !isValidVector(right) || left.length !== right.length) return null;
     let dot = 0;
     let leftNorm = 0;
     let rightNorm = 0;

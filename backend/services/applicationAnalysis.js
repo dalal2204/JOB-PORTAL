@@ -20,6 +20,11 @@ const fetchResume = async (resumeUrl) => {
         throw new Error("The stored resume URL is not from the configured Cloudinary account.");
     }
     const response = await fetch(resumeUrl, { redirect: "error", signal: AbortSignal.timeout(12000) });
+    console.info("Cloudinary resume response", {
+        httpStatus: response.status,
+        contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || null,
+        contentLength: Number(response.headers.get("content-length")) || null,
+    });
     if (!response.ok) throw new Error("The stored resume could not be downloaded from Cloudinary.");
     const declaredLength = Number(response.headers.get("content-length"));
     if (declaredLength > 8 * 1024 * 1024) throw new Error("The stored resume exceeds the 8 MB processing limit.");
@@ -41,14 +46,24 @@ const fetchResume = async (resumeUrl) => {
 };
 
 export const processApplicationAnalysis = async (applicationId, { retry = false } = {}) => {
-    const states = retry ? ["pending", "failed"] : ["pending"];
+    const eligibleStateFilter = retry
+        ? { $or: [
+            { "analysis.status": { $in: ["pending", "failed"] } },
+            { "analysis.status": "completed", "analysis.availability.semanticRelevance": "unavailable" },
+        ] }
+        : { "analysis.status": "pending" };
     const application = await Application.findOneAndUpdate(
-        { _id: applicationId, "analysis.status": { $in: states } },
+        { _id: applicationId, ...eligibleStateFilter },
         { $set: { "analysis.status": "processing", "analysis.processingAt": new Date(), "analysis.error": null } },
         { new: true },
     );
-    if (!application) return Application.findById(applicationId);
+    if (!application) {
+        console.warn("Resume analysis retry was not claimed", { retry });
+        return Application.findById(applicationId);
+    }
+    console.info("Resume analysis retry claimed", { retry });
 
+    let stage = "load_job_and_resume_profile";
     try {
         const [job, applicant] = await Promise.all([
             Job.findById(application.job),
@@ -56,11 +71,15 @@ export const processApplicationAnalysis = async (applicationId, { retry = false 
         ]);
         if (!job) throw new Error("The job is no longer available for analysis.");
         const resumeUrl = applicant?.profile?.resume;
+        stage = "download_resume_pdf";
         const buffer = await fetchResume(resumeUrl);
+        console.info("Resume PDF downloaded", { pdfByteLength: buffer.length });
+        stage = "extract_resume_text";
         const resume = await parseResumeBuffer(buffer);
+        stage = "score_resume_match";
         const result = await analyzeResumeMatch({ job, resume });
         if (result.status !== "completed") throw new Error("No scoring criteria could be assessed for this resume and job.");
-        await Application.updateOne({ _id: applicationId, "analysis.status": "processing" }, {
+        const saved = await Application.updateOne({ _id: applicationId, "analysis.status": "processing" }, {
             $set: {
                 "analysis.status": "completed",
                 "analysis.score": result.score,
@@ -80,8 +99,10 @@ export const processApplicationAnalysis = async (applicationId, { retry = false 
                 "analysis.modelVersion": result.modelVersion || null,
             },
         });
+        console.info("Resume analysis saved", { updated: saved.modifiedCount > 0, matched: saved.matchedCount > 0, status: "completed" });
     } catch (error) {
-        await Application.updateOne({ _id: applicationId, "analysis.status": "processing" }, {
+        console.error("Resume application analysis failed", { stage, errorName: error?.name || "Error" });
+        const saved = await Application.updateOne({ _id: applicationId, "analysis.status": "processing" }, {
             $set: {
                 "analysis.status": "failed",
                 "analysis.score": null,
@@ -89,6 +110,7 @@ export const processApplicationAnalysis = async (applicationId, { retry = false 
                 "analysis.analyzedAt": new Date(),
             },
         });
+        console.info("Resume analysis saved", { updated: saved.modifiedCount > 0, matched: saved.matchedCount > 0, status: "failed" });
     }
     return Application.findById(applicationId);
 };

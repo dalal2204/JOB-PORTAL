@@ -18,7 +18,7 @@ const Applicants = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await axios.get(`${APPLICATION_API_END_POINT}/jobs/${params.id}/ranked`, { withCredentials: true });
+            const res = await axios.get(`${APPLICATION_API_END_POINT}/jobs/${params.id}/ranked`, { withCredentials: true, headers: { 'Cache-Control': 'no-cache' } });
             dispatch(setAllApplicants({ applications: res.data.applications || [], job: res.data.job }));
         } catch (requestError) {
             dispatch(setAllApplicants({ applications: [], job: null }));

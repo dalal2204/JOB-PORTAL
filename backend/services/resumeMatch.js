@@ -1,14 +1,16 @@
-import { cosineSimilarity, getEmbeddingVectors } from "./embeddingProvider.js";
+import { cosineSimilarity, getEmbeddingModel, getEmbeddingVectors } from "./embeddingProvider.js";
 import { findSkills } from "../utils/skillTaxonomy.js";
 import { chunkText, normalizeResumeText } from "./resumeParser.js";
 
-export const SCORING_VERSION = "resume-match-v1";
+// This persisted version also tracks parser behavior because ranked analysis
+// invalidation uses it to decide whether saved results need to be recomputed.
+export const SCORING_VERSION = "resume-match-v3";
 export const SCORE_WEIGHTS = Object.freeze({ requiredSkills: 35, semanticRelevance: 30, evidenceRelevance: 25, experienceFit: 10 });
 
 const bounded = (value) => Math.min(100, Math.max(0, Math.round(value * 10) / 10));
 const unique = (values) => [...new Set(values)];
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const containsTerm = (text, term) => new RegExp(`(^|[^a-z0-9+#.])${escapeRegex(term.toLowerCase())}($|[^a-z0-9+#.])`, "i").test(text);
+const containsTerm = (text, term) => new RegExp(`(^|[^a-z0-9+#])${escapeRegex(term.toLowerCase())}($|[^a-z0-9+#])`, "i").test(text);
 
 export const cosineScore = (similarities) => {
     const valid = similarities.filter(Number.isFinite);
@@ -73,8 +75,19 @@ export const scoreResumeMatch = ({ job, resume, semanticScore = null, semanticUn
 export const analyzeResumeMatch = async ({ job, resume }) => {
     const jobChunks = chunkText(buildJobText(job), 2200, 0).slice(0, 12);
     const resumeChunks = (resume?.chunks?.length ? resume.chunks : chunkText(resume?.text || "", 2200, 0)).slice(0, 20);
+    const jobText = normalizeResumeText(buildJobText(job));
+    const evidenceTerms = unique(findSkills(jobText));
+    const evidenceText = normalizeResumeText(resume?.evidenceText || [resume?.sections?.projects, resume?.sections?.experience].filter(Boolean).join(" "));
+    const matchedEvidenceTerms = evidenceTerms.filter((term) => containsTerm(evidenceText, term));
+    console.info("Resume match evidence diagnostics", {
+        projectChunks: chunkText(resume?.sections?.projects || "").length,
+        experienceChunks: chunkText(resume?.sections?.experience || "").length,
+        evidenceTerms: evidenceTerms.length,
+        matchedEvidenceTerms: matchedEvidenceTerms.length,
+    });
     let semanticScore = null;
-    let reason = "Semantic matching requires a configured embedding provider.";
+    let reason = "Semantic matching requires GEMINI_API_KEY to be configured.";
+    let providerModel = null;
     if (jobChunks.length && resumeChunks.length) {
         const result = await getEmbeddingVectors([...jobChunks, ...resumeChunks]);
         if (result.available) {
@@ -82,7 +95,8 @@ export const analyzeResumeMatch = async ({ job, resume }) => {
             const resumeVectors = result.vectors.slice(jobChunks.length);
             const similarities = resumeVectors.map((resumeVector) => Math.max(...jobVectors.map((jobVector) => cosineSimilarity(jobVector, resumeVector)).filter(Number.isFinite)));
             semanticScore = similarities.length ? Math.max(0, cosineScore(similarities)) : null;
+            if (semanticScore !== null) providerModel = `${result.provider} / ${result.model}`;
         } else reason = result.reason;
     } else reason = "The job description or resume has no extractable text for semantic comparison.";
-    return scoreResumeMatch({ job, resume, semanticScore, semanticUnavailableReason: reason, providerModel: semanticScore === null ? null : process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small" });
+    return scoreResumeMatch({ job, resume, semanticScore, semanticUnavailableReason: reason, providerModel: semanticScore === null ? null : providerModel || `Google Gemini / ${getEmbeddingModel()}` });
 };

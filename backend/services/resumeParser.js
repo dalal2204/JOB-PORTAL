@@ -27,29 +27,45 @@ export const chunkText = (text, size = 1400, overlap = 180) => {
 };
 
 const SECTION_HEADINGS = {
-    projects: /\b(projects?|personal projects?)\b/i,
-    experience: /\b(experience|employment|work history|internships?)\b/i,
-    education: /\b(education|academic background|qualifications?)\b/i,
+    skills: /^(?:(?:technical|core|key)\s+)?skills?(?:\s*(?:&|\/|\|)\s*(?:technologies|tools))?$|^(?:core competencies|technologies|technical toolkit)$/i,
+    projects: /^(?:(?:(?:personal|academic|selected|key)\s+)?projects?|project\s+experience)$/i,
+    experience: /^(?:(?:professional|work|relevant)\s+)?experience$|^(?:employment|work)\s+history$|^internships?$/i,
+    education: /^(?:education|academic background|qualifications?)$/i,
 };
 
-export const extractResumeSections = (text) => {
+const normalizeHeading = (line) => line.trim()
+    .replace(/^[\s•●▪◦*#-]+/u, "")
+    .replace(/^\d+[.)-]\s*/, "")
+    .replace(/[\s:|–—-]+$/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const collectResumeSections = (text) => {
     const normalized = normalizeResumeText(text);
     const lines = normalized.split("\n").filter(Boolean);
-    const sections = { projects: [], experience: [], education: [] };
+    const sections = { skills: [], projects: [], experience: [], education: [] };
+    const detectedSections = [];
     let active = null;
     for (const line of lines) {
-        const heading = Object.entries(SECTION_HEADINGS).find(([, pattern]) => pattern.test(line.trim()));
-        if (heading && line.trim().length < 80) {
+        const heading = Object.entries(SECTION_HEADINGS).find(([, pattern]) => pattern.test(normalizeHeading(line)));
+        if (heading) {
             active = heading[0];
+            detectedSections.push(active);
             continue;
         }
         if (active && line.trim()) sections[active].push(line.trim());
     }
-    return Object.fromEntries(Object.entries(sections).map(([key, values]) => [key, values.join(" ").slice(0, 7000)]));
+    return {
+        sections: Object.fromEntries(Object.entries(sections).map(([key, values]) => [key, values.join(" ").slice(0, 7000)])),
+        detectedSections: [...new Set(detectedSections)],
+    };
 };
+
+export const extractResumeSections = (text) => collectResumeSections(text).sections;
 
 export const parseResumeBuffer = async (buffer) => {
     if (!Buffer.isBuffer(buffer) || buffer.length < 8 || buffer.subarray(0, 5).toString() !== "%PDF-") {
+        console.warn("Downloaded resume is not a PDF", { pdfByteLength: Buffer.isBuffer(buffer) ? buffer.length : null, pdfSignatureValid: false });
         throw new Error("The stored resume is not a valid PDF file.");
     }
     let parser;
@@ -57,19 +73,26 @@ export const parseResumeBuffer = async (buffer) => {
         parser = new PDFParse({ data: buffer });
         const result = await parser.getText();
         const text = normalizeResumeText(result.text);
-        if (text.length < 80) throw new Error("This PDF has too little extractable text. Scanned or image-only resumes are not supported yet.");
-        const sections = extractResumeSections(text);
+        if (text.length < 80) {
+            console.warn("Resume PDF has too little extractable text", { pdfHasExtractableText: false, pdfByteLength: buffer.length, extractedTextLength: text.length, likelyScannedOrImageOnly: true });
+            throw new Error("This PDF has too little extractable text. It may be scanned or image-only; upload a text-based PDF instead.");
+        }
+        const { sections, detectedSections } = collectResumeSections(text);
+        const skills = findSkills(text);
+        console.info("Resume PDF extracted", { pdfHasExtractableText: true, extractedTextLength: text.length, detectedSections, detectedSkills: skills });
         return {
             text,
             chunks: chunkText(text),
             sections,
-            skills: findSkills(text),
+            detectedSections,
+            skills,
             evidenceText: [sections.projects, sections.experience].filter(Boolean).join("\n"),
             educationText: sections.education,
             yearsExperience: [...text.matchAll(/\b(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b/gi)].map((match) => Number(match[1])).filter((value) => value <= 60).sort((a, b) => b - a)[0] ?? null,
         };
     } catch (error) {
         if (error.message?.startsWith("This PDF has too little extractable text")) throw error;
+        console.warn("Resume PDF extraction failed", { pdfByteLength: buffer.length, failureType: "unreadable_or_malformed_pdf" });
         throw new Error("The resume PDF could not be read. Upload a text-based PDF and try again.");
     } finally {
         try { await parser?.destroy(); } catch { /* Parser cleanup must not replace the useful extraction error. */ }

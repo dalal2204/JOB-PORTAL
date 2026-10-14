@@ -7,5 +7,6 @@ export const getApplicationRejection = ({ duplicate, jobExists, jobStatus }) => 
 
 export const recruiterOwnsJob = (job, recruiterId) => Boolean(job && recruiterId && String(job.created_by?._id || job.created_by) === String(recruiterId));
 
-export const canRetryAnalysis = (status, processingAt, now = Date.now()) => status === "pending" || status === "failed"
+export const canRetryAnalysis = (status, processingAt, now = Date.now(), analysis = null) => status === "pending" || status === "failed"
+    || (status === "completed" && analysis?.availability?.semanticRelevance === "unavailable")
     || (status === "processing" && now - new Date(processingAt || 0).getTime() >= 15 * 60 * 1000);
